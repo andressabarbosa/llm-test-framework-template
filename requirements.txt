@@ -5,6 +5,7 @@ promptlayer
 wandb
 langsmith
 langchain
+langchain-community
 faiss-cpu
 networkx
 duckduckgo-search
