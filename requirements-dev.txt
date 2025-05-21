@@ -1,4 +1,8 @@
-
-pytest
+pytest~=8.3.5
 pytest-cov
 python-dotenv
+
+# extras opcionais para desenvolvimento
+black
+ruff
+mypy
