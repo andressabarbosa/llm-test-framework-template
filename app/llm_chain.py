@@ -13,14 +13,16 @@ from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_community.vectorstores import FAISS
 from langchain_openai import ChatOpenAI
 from langsmith import traceable
+from pydantic import SecretStr
 
-# --- LLM com fallback para gpt-3.5 ---
-try:
-    llm = ChatOpenAI(model="gpt-4", temperature=0.7, api_key=os.getenv("OPENAI_API_KEY"))
-except Exception:
-    llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.7, api_key=os.getenv("OPENAI_API_KEY"))
+OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 
-# --- Prompt estruturado com parser ---
+llm = ChatOpenAI(
+    model="gpt-4" if OPENAI_KEY else "gpt-3.5-turbo",
+    temperature=0.7,
+    api_key=SecretStr(OPENAI_KEY or ""),
+)
+
 response_schemas = [
     ResponseSchema(name="resumo", description="Resumo do conteúdo abordado"),
     ResponseSchema(
@@ -38,15 +40,14 @@ prompt_template = ChatPromptTemplate.from_messages(
 
 @traceable(name="LangChain - Structured Chain")
 def run_chain(prompt: str) -> dict:
-    """Executa chain estruturada com parser"""
     formatted_prompt = prompt_template.format_messages(input=prompt)
     output = llm(formatted_prompt)
-    return parser.parse(output.content)
+    output_str = output.content if isinstance(output.content, str) else str(output.content)
+    return parser.parse(output_str)
 
 
 @traceable(name="LangChain - RAG Chain")
 def run_rag_chain(query: str, docs_path: str) -> str:
-    """Executa Retrieval-Augmented Generation com um loader local"""
     loader = TextLoader(docs_path)
     documents = loader.load()
     vectorstore = FAISS.from_documents(documents, OpenAIEmbeddings())
@@ -65,7 +66,6 @@ def run_rag_chain(query: str, docs_path: str) -> str:
 
 @traceable(name="LangChain - Graph QA Chain")
 def run_graph_chain(input_text: str) -> str:
-    """Executa uma chain de perguntas e respostas sobre grafos semânticos"""
     graph = NetworkxEntityGraph()
     chain = GraphQAChain.from_llm(llm=llm, graph=graph)
     return chain.run(input_text)
@@ -73,7 +73,6 @@ def run_graph_chain(input_text: str) -> str:
 
 @traceable(name="LangChain - Agent + Tools")
 def run_agent_with_tools(question: str) -> str:
-    """Executa um agente com ferramenta externa DuckDuckGo"""
     search = DuckDuckGoSearchRun()
     tools = [
         Tool(name="Search", func=search.run, description="Use para pesquisar informações na web")
