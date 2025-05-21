@@ -1,24 +1,33 @@
 import os
 import time
 from collections.abc import Callable
+from typing import TYPE_CHECKING, Literal, Union
 from uuid import uuid4
 
-import openai
 import promptlayer as pl
 from dotenv import load_dotenv
+from openai import OpenAI
+from openai.types.chat import ChatCompletionMessageParam
 
 import wandb as wb
 
+if TYPE_CHECKING:
+    from langsmith import Client
+
 try:
-    from langsmith import Client, traceable
+    from langsmith import Client as LangsmithClient
+    from langsmith import traceable as langsmith_traceable
 except ImportError:
 
-    def traceable(*args: object, **kwargs: object) -> Callable:
+    def dummy_traceable(*args: object, **kwargs: object) -> Callable:
         return lambda f: f
 
-    Client = None
+    langsmith_traceable = dummy_traceable
+    LangsmithClient = None  # type: ignore
 
 load_dotenv()
+
+OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 
 cost_tracker = {}
 
@@ -39,22 +48,34 @@ if os.getenv("PROMPTLAYER_API_KEY"):
     PL_TRACK_DECORATOR = pl.track
 
 # Weights & Biases
+wandb_mode: Literal["online", "offline", "disabled"]
+_raw_mode = os.getenv("WANDB_MODE")
+if _raw_mode in {"online", "offline", "disabled"}:
+    wandb_mode = _raw_mode  # type: ignore[assignment]
+else:
+    wandb_mode = "offline"
+
 wb.init(  # type: ignore[attr-defined]
     project="llm-test-framework",
     name="test_run",
-    mode=os.getenv("WANDB_MODE", "offline"),
+    mode=wandb_mode,
 )
 
 # LangSmith client (opcional)
-if os.getenv("LANGSMITH_API_KEY") and Client:
-    client = Client(
-        api_url="https://api.smith.langchain.com", api_key=os.getenv("LANGSMITH_API_KEY")
+langsmith_client: Union["Client", None] = None
+if os.getenv("LANGSMITH_API_KEY") and LangsmithClient is not None:
+    langsmith_client = LangsmithClient(
+        api_url="https://api.smith.langchain.com",
+        api_key=os.getenv("LANGSMITH_API_KEY"),
     )
+
+# OpenAI client
+openai_client = OpenAI(api_key=OPENAI_KEY)
 
 # --- Função principal com rastreamento seguro ---
 
 
-@traceable(name="LLM Test Call")
+@langsmith_traceable(name="LLM Test Call")
 @PL_TRACK_DECORATOR
 def get_response(
     prompt: str, metadata: dict | None = None, return_trace: bool = False
@@ -73,21 +94,24 @@ def get_response(
     trace_id = metadata.get("trace_id") if metadata else str(uuid4())
     start = time.time()
 
-    response = openai.ChatCompletion.create(
+    messages: list[ChatCompletionMessageParam] = [{"role": "user", "content": prompt}]
+    response = openai_client.chat.completions.create(
         model="gpt-4",
-        messages=[{"role": "user", "content": prompt}],
-        user=trace_id,
-        api_key=os.getenv("OPENAI_API_KEY"),
+        messages=messages,
+        user=str(trace_id),
     )
 
     duration = time.time() - start
     usage = response.usage
 
+    if usage is None:
+        raise ValueError("OpenAI response missing usage information")
+
     cost = (usage.prompt_tokens / 1000) * MODEL_PRICING["gpt-4"]["input"] + (
         usage.completion_tokens / 1000
     ) * MODEL_PRICING["gpt-4"]["output"]
 
-    cost_tracker[trace_id] = {
+    cost_tracker[str(trace_id)] = {
         "duration": round(duration, 4),
         "cost": round(cost, 4),
     }
@@ -104,6 +128,7 @@ def get_response(
         }
     )
 
+    content = response.choices[0].message.content or ""
     if return_trace:
-        return str(response.choices[0].message["content"]), str(trace_id)
-    return response.choices[0].message["content"]
+        return content, str(trace_id)
+    return content
