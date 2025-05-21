@@ -39,14 +39,20 @@ format:
 type-check:
 	mypy app tests
 
+check-all: format lint type-check test
+
 # --- Conveniência ---
 
 run-agent:
 	PYTHONPATH=. $(PYTHON) -c "from app.llm_chain import run_agent_with_tools; print(run_agent_with_tools('Qual a capital da França?'))"
 
-# --- Limpeza de arquivos gerados ---
+# --- Limpeza ---
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -r {} +
 	find . -type f -name "*.pyc" -delete
 	rm -rf .pytest_cache htmlcov .mypy_cache .ruff_cache
+
+# --- Marcação de alvos auxiliares ---
+
+.PHONY: setup install-deps install-dev test coverage coverage-html lint format type-check run-agent clean check-all
