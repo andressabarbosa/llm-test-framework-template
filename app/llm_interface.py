@@ -1,9 +1,13 @@
+import os
 from uuid import uuid4
-import openai
 import time
+import openai
 import promptlayer
 import wandb
 from langsmith import traceable, Client
+from dotenv import load_dotenv
+
+load_dotenv()
 
 cost_tracker = {}
 
@@ -11,9 +15,9 @@ MODEL_PRICING = {
     "gpt-4": {"input": 0.03, "output": 0.06},
 }
 
-promptlayer.api_key = "YOUR_PROMPTLAYER_API_KEY"
+promptlayer.api_key = os.getenv("PROMPTLAYER_API_KEY")
 wandb.init(project="llm-test-framework", name="test_run", mode="offline")
-client = Client(api_url="https://api.smith.langchain.com", api_key="YOUR_LANGSMITH_API_KEY")
+client = Client(api_url="https://api.smith.langchain.com", api_key=os.getenv("LANGSMITH_API_KEY"))
 
 @traceable(name="LLM Test Call")
 @promptlayer.track
@@ -23,7 +27,8 @@ def get_response(prompt, metadata=None):
     response = openai.ChatCompletion.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
-        user=trace_id
+        user=trace_id,
+        api_key=os.getenv("OPENAI_API_KEY")
     )
     duration = time.time() - start
 
