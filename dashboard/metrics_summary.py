@@ -1,1 +1,1 @@
-print('Dashboard metrics summary placeholder')
+print("Dashboard metrics summary placeholder")
