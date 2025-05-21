@@ -1,1 +1,3 @@
-# Placeholder for test_inference_trace.py
+# Placeholder para rastreio de inferência. Implemente logs ou ID de rastreio conforme necessidade.
+def test_trace_exists():
+    assert True

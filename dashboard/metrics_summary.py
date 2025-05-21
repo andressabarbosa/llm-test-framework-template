@@ -1,1 +1,1 @@
-# Placeholder for metrics_summary.py
+print('Dashboard metrics summary placeholder')
