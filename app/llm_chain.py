@@ -1,18 +1,18 @@
-from langchain.chat_models import ChatOpenAI
+from langchain_openai import ChatOpenAI
+from langchain_community.tools import DuckDuckGoSearchRun
+from langchain_community.vectorstores import FAISS
+from langchain_community.embeddings import OpenAIEmbeddings
+from langchain_community.document_loaders import TextLoader
+from langchain_community.chains.graph_qa.base import GraphQAChain
+from langchain_community.graphs import NetworkxEntityGraph
 from langchain.agents import Tool, initialize_agent, AgentType
-from langchain.tools import DuckDuckGoSearchRun
 from langchain.prompts import ChatPromptTemplate
 from langchain.output_parsers import StructuredOutputParser, ResponseSchema
 from langchain.chains.retrieval_qa.base import RetrievalQA
-from langchain.vectorstores import FAISS
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.document_loaders import TextLoader
 from langchain.memory import ConversationBufferMemory
-from langchain.chains.graph_qa.base import GraphQAChain
-from langchain.graphs import NetworkxEntityGraph
 from langsmith import traceable
 
-llm = ChatOpenAI(model_name="gpt-4", temperature=0.7)
+llm = ChatOpenAI(model="gpt-4", temperature=0.7)
 
 response_schemas = [
     ResponseSchema(name="resumo", description="Resumo do conteúdo abordado"),
