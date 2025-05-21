@@ -1,0 +1,10 @@
+openai
+sentence-transformers
+pytest
+promptlayer
+wandb
+langsmith
+langchain
+faiss-cpu
+networkx
+duckduckgo-search
