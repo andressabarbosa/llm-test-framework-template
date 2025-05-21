@@ -1,11 +1,52 @@
-install:
-	python3 -m venv .venv && . .venv/bin/activate && pip install --upgrade pip && pip install -r requirements.txt
+# Caminho do ambiente virtual
+VENV := .venv
+PYTHON := $(VENV)/bin/python
+PIP := $(VENV)/bin/pip
+
+# --- Instalação ---
+
+setup: $(VENV)/bin/activate
+
+$(VENV)/bin/activate:
+	python3 -m venv $(VENV)
+	$(PIP) install --upgrade pip
+
+install-deps:
+	$(PIP) install -r requirements.txt
+
+install-dev:
+	$(PIP) install -r requirements-dev.txt
+
+# --- Testes e Cobertura ---
 
 test:
-	PYTHONPATH=. .venv/bin/python -m pytest tests/
+	PYTHONPATH=. $(PYTHON) -m pytest tests/
 
-dashboard:
-	. .venv/bin/activate && python dashboard/metrics_summary.py
+coverage:
+	PYTHONPATH=. $(PYTHON) -m pytest --cov=app --cov-report=term-missing tests/
+
+coverage-html:
+	PYTHONPATH=. $(PYTHON) -m pytest --cov=app --cov-report=html tests/
+
+# --- Qualidade de código ---
+
+lint:
+	ruff check . && black --check .
+
+format:
+	black .
+
+type-check:
+	mypy app tests
+
+# --- Conveniência ---
 
 run-agent:
-	. .venv/bin/activate && python -c 'from app.llm_chain import run_agent_with_tools; print(run_agent_with_tools("Qual a capital da França?"))'
+	PYTHONPATH=. $(PYTHON) -c "from app.llm_chain import run_agent_with_tools; print(run_agent_with_tools('Qual a capital da França?'))"
+
+# --- Limpeza de arquivos gerados ---
+
+clean:
+	find . -type d -name "__pycache__" -exec rm -r {} +
+	find . -type f -name "*.pyc" -delete
+	rm -rf .pytest_cache htmlcov .mypy_cache .ruff_cache
