@@ -4,7 +4,6 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Literal, Union
 from uuid import uuid4
 
-import promptlayer as pl
 from dotenv import load_dotenv
 from openai import OpenAI
 from openai.types.chat import ChatCompletionMessageParam
@@ -16,14 +15,21 @@ if TYPE_CHECKING:
 
 try:
     from langsmith import Client as LangsmithClient
-    from langsmith import traceable as langsmith_traceable
+    from langsmith.traceable import traceable as langsmith_trace_decorator
 except ImportError:
 
-    def dummy_traceable(*args: object, **kwargs: object) -> Callable:
+    def langsmith_trace_decorator(*args: object, **kwargs: object) -> Callable:
         return lambda f: f
 
-    langsmith_traceable = dummy_traceable
     LangsmithClient = None  # type: ignore
+
+try:
+    from promptlayer.decorators import track as pl_track
+except (ImportError, AttributeError):
+
+    def pl_track(f: Callable) -> Callable:
+        return f
+
 
 load_dotenv()
 
@@ -34,18 +40,6 @@ cost_tracker = {}
 MODEL_PRICING = {
     "gpt-4": {"input": 0.03, "output": 0.06},
 }
-
-# --- Inicialização condicional de ferramentas externas ---
-
-
-def identity(f: Callable) -> Callable:
-    return f
-
-
-PL_TRACK_DECORATOR: Callable = identity
-if os.getenv("PROMPTLAYER_API_KEY"):
-    pl.api_key = os.getenv("PROMPTLAYER_API_KEY")
-    PL_TRACK_DECORATOR = pl.track
 
 # Weights & Biases
 wandb_mode: Literal["online", "offline", "disabled"]
@@ -75,8 +69,8 @@ openai_client = OpenAI(api_key=OPENAI_KEY)
 # --- Função principal com rastreamento seguro ---
 
 
-@langsmith_traceable(name="LLM Test Call")
-@PL_TRACK_DECORATOR
+@langsmith_trace_decorator(name="LLM Test Call")
+@pl_track
 def get_response(
     prompt: str, metadata: dict | None = None, return_trace: bool = False
 ) -> str | tuple[str, str]:
