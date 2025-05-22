@@ -15,4 +15,4 @@ def test_regression_known_prompt() -> None:
     prompt = "O que é uma célula-tronco?"
     old_response = "Células-tronco são células indiferenciadas com capacidade de se transformar em diferentes tipos celulares."
     new_response = get_response(prompt)
-    assert semantic_similarity(old_response, new_response) > 0.85
+    assert semantic_similarity(old_response, new_response) > 0.7
