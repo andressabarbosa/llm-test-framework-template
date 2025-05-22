@@ -32,7 +32,16 @@ response_schemas = [
 parser = StructuredOutputParser.from_response_schemas(response_schemas)
 prompt_template = ChatPromptTemplate.from_messages(
     [
-        ("system", "Você é um assistente que extrai informações estruturadas de textos."),
+        (
+            "system",
+            """Você é um assistente que extrai informações estruturadas de textos.
+Responda **apenas** em JSON no seguinte formato:
+
+{{
+  "resumo": "<resumo do conteúdo>",
+  "conceitos_chave": ["<conceito 1>", "<conceito 2>", ...]
+}}""",
+        ),
         ("user", "{input}"),
     ]
 )
@@ -41,7 +50,7 @@ prompt_template = ChatPromptTemplate.from_messages(
 @traceable(name="LangChain - Structured Chain")
 def run_chain(prompt: str) -> dict:
     formatted_prompt = prompt_template.format_messages(input=prompt)
-    output = llm(formatted_prompt)
+    output = llm.invoke(formatted_prompt)
     output_str = output.content if isinstance(output.content, str) else str(output.content)
     return parser.parse(output_str)
 
@@ -52,7 +61,7 @@ def run_rag_chain(query: str, docs_path: str) -> str:
     documents = loader.load()
     vectorstore = FAISS.from_documents(documents, OpenAIEmbeddings())
     retriever = vectorstore.as_retriever()
-    memory = ConversationBufferMemory(memory_key="chat_history")
+    memory = ConversationBufferMemory(memory_key="chat_history", output_key="result")
 
     rag_chain = RetrievalQA.from_chain_type(
         llm=llm,
@@ -61,7 +70,8 @@ def run_rag_chain(query: str, docs_path: str) -> str:
         memory=memory,
         return_source_documents=True,
     )
-    return rag_chain.run(query)
+    result = rag_chain.invoke({"query": query})
+    return result["result"]
 
 
 @traceable(name="LangChain - Graph QA Chain")
