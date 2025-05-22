@@ -7,11 +7,10 @@ from langchain.output_parsers import ResponseSchema, StructuredOutputParser
 from langchain.prompts import ChatPromptTemplate
 from langchain_community.chains.graph_qa.base import GraphQAChain
 from langchain_community.document_loaders import TextLoader
-from langchain_community.embeddings import OpenAIEmbeddings
 from langchain_community.graphs import NetworkxEntityGraph
 from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_community.vectorstores import FAISS
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langsmith import traceable
 from pydantic import SecretStr
 
@@ -50,7 +49,7 @@ Responda **apenas** em JSON no seguinte formato:
 @traceable(name="LangChain - Structured Chain")
 def run_chain(prompt: str) -> dict:
     formatted_prompt = prompt_template.format_messages(input=prompt)
-    output = llm.invoke(formatted_prompt)
+    output = llm.invoke(formatted_prompt)  # ✅ .invoke ao invés de .run
     output_str = output.content if isinstance(output.content, str) else str(output.content)
     return parser.parse(output_str)
 
@@ -61,7 +60,10 @@ def run_rag_chain(query: str, docs_path: str) -> str:
     documents = loader.load()
     vectorstore = FAISS.from_documents(documents, OpenAIEmbeddings())
     retriever = vectorstore.as_retriever()
-    memory = ConversationBufferMemory(memory_key="chat_history", output_key="result")
+    memory = ConversationBufferMemory(
+        memory_key="chat_history",
+        output_key="result",
+    )
 
     rag_chain = RetrievalQA.from_chain_type(
         llm=llm,
@@ -78,7 +80,8 @@ def run_rag_chain(query: str, docs_path: str) -> str:
 def run_graph_chain(input_text: str) -> str:
     graph = NetworkxEntityGraph()
     chain = GraphQAChain.from_llm(llm=llm, graph=graph)
-    return chain.run(input_text)
+    result = chain.invoke({"query": input_text})
+    return result["result"]
 
 
 @traceable(name="LangChain - Agent + Tools")
@@ -87,5 +90,10 @@ def run_agent_with_tools(question: str) -> str:
     tools = [
         Tool(name="Search", func=search.run, description="Use para pesquisar informações na web")
     ]
-    agent = initialize_agent(tools, llm, agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, verbose=True)
+    agent = initialize_agent(
+        tools,
+        llm,
+        agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+        verbose=True,
+    )
     return agent.run(question)
